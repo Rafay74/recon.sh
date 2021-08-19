@@ -1,0 +1,31 @@
+#! /bin/bash
+
+domain=$1
+listener=$2
+
+passive_enum(){
+
+echo -e "\033[0;31m [+]\033[0m SUBDOMAINS SCRAPING"
+
+mkdir -p $domain $domain/data
+
+curl -s https://crt.sh/?q\=%.$domain\&output\=json | jq -r '.[].name_value' | sed 's/\*\.//g' | sort -u | tee $domain/data/crtsh.txt
+amass enum --passive -d $domain -o $domain/data/amass.txt
+subfinder -silent -recursive -d $domain -o  $domain/data/subfinder.txt
+assetfinder --subs-only $domain | tee -a $domain/dataa/assetfinder.txt
+findomain --target $domain | tee $domain/data/findomain.txt
+
+cat $domain/data/*.txt | grep -v 'Searching\|Target\|Good luck\|failed\|seconds' | sort -u > $domain/data/all.txt
+
+echo -e "\033[0;31m [+]\033[0m CHECKING FOR LIVE SUBDOMAINS"
+cat $domain/data/all.txt | httpx | tee $domain/data/lives.txt
+
+echo -e "\033[0;31m [+]\033[0m CHECKING DOMAIN TAKEOVER"
+subzy -targets $domain/data/lives.txt | tee $domain/data/subzy_output.txt
+
+echo -e "\033[0;31m [+]\033[0m CHECKING FOR TECHNOLOGIES"
+nuclei -l $domain/data/lives.txt -t ~/nuclei-templates/technologies/ | tee $domain/data/technologies.txt
+
+
+}
+passive_enum
